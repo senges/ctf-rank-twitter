@@ -1,6 +1,15 @@
-from RootMe import RootMe
-from TryHackMe import TryHackMe
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# =============================================================================
+# Author : @Pdrooo
+# Version : Apr. 2021
+# Description : Update Twitter bio with CTF score
+# =============================================================================
 
+from libs.RootMe import RootMe
+from libs.TryHackMe import TryHackMe
+
+import time
 import twitter
 import Settings
 
@@ -11,42 +20,61 @@ twitterAPI = twitter.Api(
     access_token_secret = Settings.TWITTER_TOKEN_SECRET
 )
 
-def updateTwitterBio(rm_client, thm_client, htb_client):
-    bio = ''
-    old_bio = twitterAPI.VerifyCredentials().description
+# How long we should wait between
+# every check
 
-    if rm_client != None:
-        bio += rm_client.pprint()
+UPDATE_DELAY = 60
 
-    if thm_client != None:
-        bio += thm_client.pprint()
+# Bio template
 
-    if htb_client != None:
-        bio += htb_client.pprint()
+BIO_TEMPLATE = \
+'''
+Hello, this is my hacker bio !
+Here are my challenge scores :
+> {}
+> {}
 
-    if bio != old_bio:
-        twitterAPI.UpdateProfile( description = bio )
-    else:
-        print('No update available')
-        exit()
+Take care
+'''
 
+# Update twitter user bio
+def updateTwitterBio(bio: str):
+    twitterAPI.UpdateProfile( description = bio )
+
+# Entrypoint
 def main():
-    # Init root-me client
+
+    # New RootMe client
     rm = RootMe (
-        Settings.ROOTME_LOGIN,
+        Settings.ROOTME_LOGIN
     )
 
-    # Init tryhackme client
-    thm =  TryHackMe (
+    # New TryHackMe client
+    thm = TryHackMe (
         Settings.THM_LOGIN,
         Settings.THM_PASSWORD,
         Settings.THM_USERNAME
     )
 
-    # Twitter description update
-    updateTwitterBio(rm, thm, None)
+    # Run forever
+    while True:
 
-    print("Twitter update successful")
+        # If new informations
+        if rm.update() or thm.update():
+            
+            # Twitter description
+            bio  = BIO_TEMPLATE.format(
+                rm.pprint(),    # Default class pretty print
+                thm.pprint()    # Default class pretty print
+            )
+
+            # Update twitter bio
+            updateTwitterBio( bio )
+
+            print("Twitter bio updated")
+
+        # Wait until next check
+        time.sleep( UPDATE_DELAY )
 
 if __name__ == "__main__":
     main()

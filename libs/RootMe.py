@@ -1,6 +1,8 @@
 from urllib import parse
 from lxml import html
 
+from libs.ChallengePlatform import ChallengePlatform, UserInfo
+
 import requests
 import time
 
@@ -15,13 +17,14 @@ RM_URL_ROOT  = 'https://www.root-me.org'
 # Shortened URL encoding function
 encode = parse.urlencode
 
-class RootMe:
+class RootMe(ChallengePlatform):
 
     def __init__(self, login):
         self._login = login
+        self._userInfo = None
 
     # -- Unified api compliant get method
-    def get(self, url):
+    def get(self, url) -> requests.Response:
         time.sleep(DELAY)
 
         response = requests.get( url )
@@ -31,25 +34,42 @@ class RootMe:
         
         return response
 
-    def fetchInfo(self):
+    # -- Update client state
+    def update(self) -> bool:
+        infos = self.fetchInfos()
+
+        # If fetched data is different from current
+        if infos != self._userInfo:
+            self._userInfo = infos
+
+            return True
+
+        return False
+
+    # -- Fetch last user data
+    def fetchInfos(self) -> UserInfo:
 
         url = f'{ RM_URL_ROOT }/{ self._login }?inc=score&lang=fr'
 
         tree = html.fromstring( self.get( url ).text )
         score = tree.xpath('//span[contains(@class, "txxl") ]/span[@class = "gris"]').pop()
 
-        myRank = score.getparent().text.strip()
-        maxRank = score.text
+        rank = score.getparent().text.strip()
+        nrank = score.text[1:]
 
         challenges = tree.xpath('//span[contains(@class, "txxl") ]/span[@class = "gris tl"]').pop()
-        points = challenges.getparent().text.strip().split('Points')[0]
+        score = challenges.getparent().text.strip().split('Points')[0]
 
-        return f'{myRank}{maxRank} ({points}pts)'
+        return UserInfo( rank, nrank, score, None )
+
+    # -- Return local user data
+    def yieldInfos(self) -> UserInfo:
+        return self._userInfo
 
     # -- Pretty print
     def pprint(self):
-        return f'Root-me rank : { self.fetchInfo() }'
-
-    def panic(self, msg):
-        print(f'Error : {msg}')
-        exit(1)
+        return 'RootMe rank : {}/{} ({}pts)'.format(
+            self._userInfo.rank,
+            self._userInfo.nrank,
+            self._userInfo.score
+        )
